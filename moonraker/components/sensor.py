@@ -245,6 +245,25 @@ class Sensors:
             self._handle_sensor_measurements_request,
         )
 
+        # Check for additional sensor factories
+        sensor_factories = config.get_prefix_sections("sensor_factory ")
+        for sensor_factory in sensor_factories:
+            try:
+                factory = config[sensor_factory]
+                try:
+                    _, name = factory.get_name().split(maxsplit=1)
+                except ValueError:
+                    raise factory.error(f"Invalid section name: {factory.get_name()}")
+                logging.info(f"Adding sensor class: {name}")
+                sensor_class = self.server.load_component(config, name)
+                self.add_sensor_factory(name, sensor_class)
+            except Exception as e:
+                # Ensures that configuration errors are shown to the user
+                self.server.add_warning(
+                    f"Failed to add sensor class[{factory.get_name()}]\n{e}", exc_info=e
+                )
+                continue
+
         # Register notifications
         self.server.register_notification(SENSOR_EVENT_NAME)
         prefix_sections = config.get_prefix_sections("sensor ")
@@ -340,6 +359,16 @@ class Sensors:
         self.sensors_update_timer.stop()
         for sensor in self.sensors.values():
             sensor.close()
+
+    def add_sensor_factory(
+            self, sensor_type: str, sensor_class: Type[BaseSensor]
+    ) -> None:
+        if sensor_type not in self.__sensor_types:
+            self.__sensor_types[sensor_type] = sensor_class
+        else:
+            raise self.server.error(
+                f"Sensor type {sensor_type} already listed."
+            )
 
 
 def load_component(config: ConfigHelper) -> Sensors:
