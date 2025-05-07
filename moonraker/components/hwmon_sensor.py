@@ -4,6 +4,8 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
+from __future__ import annotations
+
 from .sensor import BaseSensor
 
 # Annotation imports
@@ -33,3 +35,9 @@ class HWMONSensor(BaseSensor):
 
     def initialize(self):
         pass
+
+def load_component(config: ConfigHelper) -> HWMONSensor:
+    return HWMONSensor(config)
+
+def load_sensor_class() -> HWMONSensor:
+    return HWMONSensor

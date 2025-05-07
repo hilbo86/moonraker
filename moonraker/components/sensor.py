@@ -245,25 +245,6 @@ class Sensors:
             self._handle_sensor_measurements_request,
         )
 
-        # Check for additional sensor factories
-        sensor_factories = config.get_prefix_sections("sensor_factory ")
-        for sensor_factory in sensor_factories:
-            try:
-                factory = config[sensor_factory]
-                try:
-                    _, name = factory.get_name().split(maxsplit=1)
-                except ValueError:
-                    raise factory.error(f"Invalid section name: {factory.get_name()}")
-                logging.info(f"Adding sensor class: {name}")
-                sensor_class = self.server.load_component(config, name)
-                self.add_sensor_factory(name, sensor_class)
-            except Exception as e:
-                # Ensures that configuration errors are shown to the user
-                self.server.add_warning(
-                    f"Failed to add sensor class[{factory.get_name()}]\n{e}", exc_info=e
-                )
-                continue
-
         # Register notifications
         self.server.register_notification(SENSOR_EVENT_NAME)
         prefix_sections = config.get_prefix_sections("sensor ")
@@ -276,6 +257,8 @@ class Sensors:
                     raise cfg.error(f"Invalid section name: {cfg.get_name()}")
                 logging.info(f"Configuring sensor: {name}")
                 sensor_type: str = cfg.get("type")
+                if sensor_type.upper() not in self.__sensor_types:
+                    self.load_sensor_factory(config, sensor_type)
                 sensor_class: Optional[Type[BaseSensor]] = self.__sensor_types.get(
                     sensor_type.upper(), None
                 )
@@ -359,15 +342,21 @@ class Sensors:
         self.sensors_update_timer.stop()
         for sensor in self.sensors.values():
             sensor.close()
-
-    def add_sensor_factory(
-            self, sensor_type: str, sensor_class: Type[BaseSensor]
-    ) -> None:
-        if sensor_type not in self.__sensor_types:
-            self.__sensor_types[sensor_type] = sensor_class
-        else:
-            raise self.server.error(
-                f"Sensor type {sensor_type} already listed."
+        
+    def load_sensor_factory(self, config, sensor_type: str) -> None:
+        try:
+            loader = self.server.load_component(config, 'sensor_loader')
+            candidate = loader.import_sensor(sensor_type)
+            if candidate is not None:
+                s_type = sensor_type.upper()
+                self.__sensor_types[s_type] = candidate
+            else:
+                self.server.add_warning(
+                    f"Sensor type {sensor_type} not found."
+            )
+        except Exception as e:
+            self.server.add_warning(
+                f"Failed to add sensor class[{sensor_type}]\n{e}", exc_info=e
             )
 
 
