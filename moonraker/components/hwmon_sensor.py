@@ -39,5 +39,5 @@ class HWMONSensor(BaseSensor):
 def load_component(config: ConfigHelper) -> HWMONSensor:
     return HWMONSensor(config)
 
-def load_sensor_class() -> HWMONSensor:
+def load_sensor_class() -> type[HWMONSensor]:
     return HWMONSensor
