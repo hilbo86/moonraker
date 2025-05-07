@@ -342,7 +342,7 @@ class Sensors:
         self.sensors_update_timer.stop()
         for sensor in self.sensors.values():
             sensor.close()
-        
+
     def load_sensor_factory(self, config, sensor_type: str) -> None:
         try:
             loader = self.server.load_component(config, 'sensor_loader')
@@ -353,7 +353,7 @@ class Sensors:
             else:
                 self.server.add_warning(
                     f"Sensor type {sensor_type} not found."
-            )
+                )
         except Exception as e:
             self.server.add_warning(
                 f"Failed to add sensor class[{sensor_type}]\n{e}", exc_info=e

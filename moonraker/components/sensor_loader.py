@@ -9,20 +9,11 @@ from __future__ import annotations
 import importlib
 import logging
 from .sensor import BaseSensor
-from ..utils import Sentinel
 
 # Annotation imports
 from typing import (
-    Any,
-    DefaultDict,
-    Deque,
     Dict,
-    List,
-    Optional,
-    Type,
     TYPE_CHECKING,
-    Union,
-    Callable
 )
 
 if TYPE_CHECKING:
@@ -43,7 +34,7 @@ class SensorLoader:
             module = importlib.import_module(full_name)
             load_func = getattr(module, "load_sensor_class")
             component = load_func()
-        except Exception as e:
+        except Exception:
             msg = f"Unable to load component: ({sensor_type})"
             logging.exception(msg)
             if sensor_type not in self.server.failed_components:
@@ -52,6 +43,6 @@ class SensorLoader:
         self.components[sensor_type] = component
         logging.info(f"Component ({sensor_type}) loaded")
         return component
-    
+
 def load_component(config: ConfigHelper) -> SensorLoader:
     return SensorLoader(config)
