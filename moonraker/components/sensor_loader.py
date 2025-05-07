@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class SensorLoader:
     def __init__(self, config: ConfigHelper) -> None:
         self.server = config.get_server()
-        self.components: Dict = {str, BaseSensor}
+        self.components: Dict[str, BaseSensor] = {}
 
     def import_sensor(self, sensor_type: str, default=None) -> BaseSensor | None:
         if sensor_type in self.components:
