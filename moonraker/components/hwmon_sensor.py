@@ -10,22 +10,22 @@ from .sensor import BaseSensor
 
 # Annotation imports
 from typing import (
-    #Any,
-    #DefaultDict,
-    #Deque,
-    #Dict,
-    #List,
-    #Optional,
-    #Type,
+    # Any,
+    # DefaultDict,
+    # Deque,
+    # Dict,
+    # List,
+    # Optional,
+    # Type,
     TYPE_CHECKING,
-    #Union,
-    #Callable
+    # Union,
+    # Callable
 )
 
 if TYPE_CHECKING:
     from ..confighelper import ConfigHelper
-    #from ..common import WebRequest
-    #from .history import History
+    # from ..common import WebRequest
+    # from .history import History
 
 SENSOR_UPDATE_TIME = 1.0
 
@@ -41,3 +41,4 @@ def load_component(config: ConfigHelper) -> HWMONSensor:
 
 def load_sensor_class() -> type[HWMONSensor]:
     return HWMONSensor
+    
