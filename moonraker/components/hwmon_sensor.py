@@ -41,3 +41,4 @@ def load_component(config: ConfigHelper) -> HWMONSensor:
 
 def load_sensor_class() -> type[HWMONSensor]:
     return HWMONSensor
+
