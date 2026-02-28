@@ -611,6 +611,16 @@ user_filter: (&(objectClass=user)(cn=USERNAME))
 #   Jinja2 Templates, see the [secrets] section for details.
 #   The default is empty, which will change the lookup query depending on
 #   is_active_directory.
+membership_attribute: memberOf
+#   The name of the attribute that contains a list of groups the user is
+#   a member of.  Can be "memberOf" or "isMemberOf".  Default is "memberOf".
+check_dn_case: True
+#   Determines whether or not DN comparisons performed by Moonraker are
+#   case sensitive.  Currently this applies to the 'group_dn' when it is
+#   configured.  Default is True.
+#   Note:  This option does NOT apply to LDAP search operations.  The LDAP
+#   spec states that DN comparisons should not be case sensitive, however it
+#   is possible for server and/or administrator to override this behavior.
 ```
 
 ### `[octoprint_compat]`
@@ -2990,9 +3000,7 @@ For a typical single instance installation this resolves to
 `$HOME/printer_data/moonraker.secrets`. This may be a symbolic link.
 ///
 
-Example ini secrets file:
-
-```ini {title="secrets.ini"}
+```ini {title="Example moonraker.secrets ini file"}
 # /home/pi/printer_data/moonraker.secrets
 
 [mqtt_credentials]
@@ -3004,9 +3012,7 @@ token: long_token_string
 
 ```
 
-Example json secrets file:
-
-```json {title="secrets.json"}
+```json {title="Example moonraker.secrets json file"}
 {
     "mqtt_credentials": {
         "username": "mqtt_user",
