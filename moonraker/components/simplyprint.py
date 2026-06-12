@@ -200,7 +200,7 @@ class SimplyPrint(APITransport):
                 log_connect = False
             try:
                 self.ws = await tornado.websocket.websocket_connect(
-                    url, connect_timeout=5.,
+                    url, connect_timeout=15.,
                 )
                 setattr(self.ws, "on_ping", self._on_ws_ping)
                 cur_time = self.eventloop.get_loop_time()
@@ -1319,7 +1319,11 @@ class LayerDetect:
         return self._layer
 
     def update(self, new_pos: List[float]) -> None:
-        if not self._active or self._layer_z == new_pos[2]:
+        if (
+            not self._active or
+            self._layer_z == new_pos[2] or
+            self._layer_height == 0
+        ):
             self._check_next = False
             return
         if not self._check_next:
@@ -1349,7 +1353,8 @@ class LayerDetect:
                 self._layer_count = int((obj_height - flh) / lh + .5)
 
     def resume(self) -> None:
-        self._active = True
+        if self._layer_height > 0.:
+            self._active = True
 
     def stop(self) -> None:
         self._active = False
@@ -1502,7 +1507,8 @@ class PrintHandler:
             logging.debug(f"Downloading URL: {url}")
             tmp_path = await client.download_file(
                 url, accept, progress_callback=self._on_download_progress,
-                request_timeout=3600.
+                connect_timeout=15.,
+                request_timeout=3600.,
             )
         except asyncio.TimeoutError:
             raise
