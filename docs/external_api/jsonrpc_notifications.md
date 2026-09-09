@@ -1458,3 +1458,37 @@ notify_sensor_update
 { #sensor-values-spec } Sensor Values
 
 ///
+
+Sensor errors and recoveries are emitted separately so clients can preserve
+the numeric shape of sensor update notifications.
+
+```{.text title="Notification Method Name"}
+notify_sensor_error
+```
+
+```{.json .apiresponse title="Example Notification"}
+{
+    "jsonrpc": "2.0",
+    "method": "notify_sensor_error",
+    "params": [
+        {
+            "host_hardware": "fan1_input: hardware reports a channel fault",
+            "recovered_sensor": null
+        }
+    ]
+}
+```
+/// api-notification-spec
+    open: True
+
+| Pos |  Type  | Description                                      |
+| --- | :----: | ------------------------------------------------ |
+| 0   | object | A `Sensor Error Notification` object.            |
+
+| Field         |  Type   | Description                                      |
+| ------------- | :-----: | ------------------------------------------------ |
+| *sensor_name* | string? | The current error, or `null` when the configured |
+|               |         | sensor has recovered.                            |^
+{ #sensor-error-notification-spec } Sensor Error Notification
+
+///

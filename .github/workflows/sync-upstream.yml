@@ -1,0 +1,68 @@
+name: Sync upstream into TH-Mod
+
+on:
+  schedule:
+    - cron: "40 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-th-mod
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge, test, and push upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TH-Mod
+        uses: actions/checkout@v6
+        with:
+          ref: TH-Mod
+          fetch-depth: 0
+          token: ${{ secrets.PAT || github.token }}
+
+      - name: Merge upstream master
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/Arksine/moonraker.git \
+            2>/dev/null || \
+            git remote set-url upstream https://github.com/Arksine/moonraker.git
+          git fetch upstream master:refs/remotes/upstream/master
+
+          before_sha="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor upstream/master HEAD; then
+            git merge --no-edit upstream/master
+          fi
+          after_sha="$(git rev-parse HEAD)"
+          echo "before_sha=${before_sha}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${before_sha}" == "${after_sha}" ]]; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Set up Python
+        if: steps.merge.outputs.changed == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Validate merged tree
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          git diff --check "${{ steps.merge.outputs.before_sha }}" HEAD
+          python -m compileall -q moonraker
+          python -m unittest tests/test_hwmon_sensor.py
+
+      - name: Push synchronized branch
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin HEAD:TH-Mod

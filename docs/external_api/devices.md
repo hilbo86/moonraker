@@ -932,6 +932,7 @@ GET /server/sensors/list?extended=False
             "id": "sensor1",
             "friendly_name": "Sensor 1",
             "type": "mqtt",
+            "error": null,
             "values": {
                 "value1": 0,
                 "value2": 119.8
@@ -994,8 +995,9 @@ GET /server/sensors/list?extended=False
 | ---------------- | :------: | ------------------------------------------- |
 | `id`             |  string  | The sensor's configured ID.                 |
 | `friendly_name`  |  string  | The sensor's configured friendly name.      |
-| `type`           |  string  | The sensor's configured type.  Currently    |
-|                  |          | only `mqtt` types are supported.            |^
+| `type`           |  string  | The sensor's configured type.               |
+| `error`          | string?  | The current sensor error, or `null` when the |
+|                  |          | sensor is operating normally.               |^
 | `values`         |  object  | A `Sensor Values` object reporting the      |
 |                  |          | most recent values measured by the sensor.  |^
 |                  |          | #sensor-values-spec                         |+
@@ -1104,6 +1106,7 @@ GET /server/sensors/info?sensor=sensor1&extended=false
     "id": "sensor1",
     "friendly_name": "Sensor 1",
     "type": "mqtt",
+    "error": null,
     "values": {
         "value1": 0.0,
         "value2": 120.0

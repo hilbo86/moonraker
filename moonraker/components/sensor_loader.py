@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import importlib
 import logging
+import re
 from .sensor import BaseSensor
 
 # Annotation imports
 from typing import (
     Dict,
+    Optional,
     TYPE_CHECKING,
+    Type,
 )
 
 if TYPE_CHECKING:
@@ -21,28 +24,38 @@ if TYPE_CHECKING:
 
 class SensorLoader:
     def __init__(self, config: ConfigHelper) -> None:
-        self.server = config.get_server()
-        self.components: Dict[str, BaseSensor] = {}
+        self.sensor_classes: Dict[str, Type[BaseSensor]] = {}
+        self.failed_sensors: set[str] = set()
 
-    def import_sensor(self, sensor_type: str, default=None) -> BaseSensor | None:
-        if sensor_type in self.components:
-            return self.components[sensor_type]
-        elif sensor_type in self.server.failed_components:
+    def import_sensor(self, sensor_type: str) -> Optional[Type[BaseSensor]]:
+        sensor_type = sensor_type.lower()
+        if sensor_type in self.sensor_classes:
+            return self.sensor_classes[sensor_type]
+        if sensor_type in self.failed_sensors:
+            return None
+        if re.fullmatch(r"[a-z][a-z0-9_]*", sensor_type) is None:
+            logging.error("Invalid sensor type module name: %s", sensor_type)
+            self.failed_sensors.add(sensor_type)
             return None
         full_name = f"moonraker.components.{sensor_type}"
         try:
             module = importlib.import_module(full_name)
             load_func = getattr(module, "load_sensor_class")
-            component = load_func()
-        except Exception:
-            msg = f"Unable to load component: ({sensor_type})"
-            logging.exception(msg)
-            if sensor_type not in self.server.failed_components:
-                self.server.failed_components.append(sensor_type)
+            sensor_class = load_func()
+            if not isinstance(sensor_class, type) or not issubclass(
+                sensor_class, BaseSensor
+            ):
+                raise TypeError(
+                    f"{full_name}.load_sensor_class() did not return a "
+                    "BaseSensor subclass"
+                )
+        except Exception as e:
+            logging.exception("Unable to load sensor type '%s': %s", sensor_type, e)
+            self.failed_sensors.add(sensor_type)
             return None
-        self.components[sensor_type] = component
-        logging.info(f"Component ({sensor_type}) loaded")
-        return component
+        self.sensor_classes[sensor_type] = sensor_class
+        logging.info("Sensor type '%s' loaded", sensor_type)
+        return sensor_class
 
 def load_component(config: ConfigHelper) -> SensorLoader:
     return SensorLoader(config)

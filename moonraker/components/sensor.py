@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 SENSOR_UPDATE_TIME = 1.0
 SENSOR_EVENT_NAME = "sensors:sensor_update"
+SENSOR_ERROR_EVENT_NAME = "sensors:sensor_error"
 
 def _set_result(
     name: str, value: Union[int, float], store: Dict[str, Union[int, float]]
@@ -49,6 +50,7 @@ class BaseSensor:
     def __init__(self, config: ConfigHelper) -> None:
         self.server = config.get_server()
         self.error_state: Optional[str] = None
+        self.last_error_state: Optional[str] = None
         self.id = config.get_name().split(maxsplit=1)[-1]
         self.type = config.get("type")
         self.name = config.get("name", self.id)
@@ -128,6 +130,19 @@ class BaseSensor:
         # Copy the last measurements data
         self.last_value = {**self.last_measurements}
 
+    def _set_measurements(
+        self, measurements: Dict[str, Union[int, float]]
+    ) -> None:
+        """Store current measurements and update configured history fields."""
+        self.last_measurements = measurements
+        for name, value in measurements.items():
+            for field_data in self.field_info.get(name, []):
+                field_data.tracker.update(value)
+
+    async def poll(self, eventtime: float) -> None:
+        """Update a polled sensor before its value is stored and published."""
+        pass
+
     async def initialize(self) -> bool:
         """
         Sensor initialization executed on Moonraker startup.
@@ -141,6 +156,7 @@ class BaseSensor:
             "friendly_name": self.name,
             "type": self.type,
             "values": self.last_measurements,
+            "error": self.error_state,
         }
         if extended:
             ret["parameter_info"] = self.param_info
@@ -188,13 +204,7 @@ class MQTTSensor(BaseSensor):
             self.error_state = str(e)
         else:
             self.error_state = None
-            self.last_measurements = measurements
-            for name, value in measurements.items():
-                fdata_list = self.field_info.get(name)
-                if fdata_list is None:
-                    continue
-                for fdata in fdata_list:
-                    fdata.tracker.update(value)
+            self._set_measurements(measurements)
 
     async def _on_mqtt_disconnected(self):
         self.error_state = "MQTT Disconnected"
@@ -216,11 +226,10 @@ class MQTTSensor(BaseSensor):
 
 
 class Sensors:
-    __sensor_types: Dict[str, Type[BaseSensor]] = {"MQTT": MQTTSensor}
-
     def __init__(self, config: ConfigHelper) -> None:
         self.server = config.get_server()
         self.sensors: Dict[str, BaseSensor] = {}
+        self.sensor_types: Dict[str, Type[BaseSensor]] = {"MQTT": MQTTSensor}
 
         # Register timer to update sensor values in store
         self.sensors_update_timer = self.server.get_event_loop().register_timer(
@@ -246,6 +255,7 @@ class Sensors:
 
         # Register notifications
         self.server.register_notification(SENSOR_EVENT_NAME)
+        self.server.register_notification(SENSOR_ERROR_EVENT_NAME)
         prefix_sections = config.get_prefix_sections("sensor ")
         for section in prefix_sections:
             cfg = config[section]
@@ -256,9 +266,9 @@ class Sensors:
                     raise cfg.error(f"Invalid section name: {cfg.get_name()}")
                 logging.info(f"Configuring sensor: {name}")
                 sensor_type: str = cfg.get("type")
-                if sensor_type.upper() not in self.__sensor_types:
+                if sensor_type.upper() not in self.sensor_types:
                     self.load_sensor_factory(config, sensor_type)
-                sensor_class: Optional[Type[BaseSensor]] = self.__sensor_types.get(
+                sensor_class: Optional[Type[BaseSensor]] = self.sensor_types.get(
                     sensor_type.upper(), None
                 )
                 if sensor_class is None:
@@ -272,13 +282,24 @@ class Sensors:
                 )
                 continue
 
-    def _update_sensor_values(self, eventtime: float) -> float:
+    async def _update_sensor_values(self, eventtime: float) -> float:
         """
         Iterate through the sensors and store the last updated value.
         """
         changed_data: Dict[str, Dict[str, Union[int, float]]] = {}
+        changed_errors: Dict[str, Optional[str]] = {}
         for sensor_name, sensor in self.sensors.items():
             base_value = sensor.last_value
+            try:
+                await sensor.poll(eventtime)
+            except Exception as e:
+                error = f"Failed to poll sensor '{sensor_name}': {e}"
+                if sensor.error_state != error:
+                    logging.exception(error)
+                sensor.error_state = error
+            if sensor.error_state != sensor.last_error_state:
+                changed_errors[sensor_name] = sensor.error_state
+                sensor.last_error_state = sensor.error_state
             sensor._update_sensor_value(eventtime=eventtime)
 
             # Notify if a change in sensor values was detected
@@ -286,6 +307,8 @@ class Sensors:
                 changed_data[sensor_name] = sensor.last_value
         if changed_data:
             self.server.send_event(SENSOR_EVENT_NAME, changed_data)
+        if changed_errors:
+            self.server.send_event(SENSOR_ERROR_EVENT_NAME, changed_errors)
         return eventtime + SENSOR_UPDATE_TIME
 
     async def component_init(self) -> None:
@@ -348,7 +371,7 @@ class Sensors:
             candidate = loader.import_sensor(sensor_type)
             if candidate is not None:
                 s_type = sensor_type.upper()
-                self.__sensor_types[s_type] = candidate
+                self.sensor_types[s_type] = candidate
             else:
                 self.server.add_warning(
                     f"Sensor type {sensor_type} not found."

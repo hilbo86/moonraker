@@ -3353,7 +3353,7 @@ The following configuration options are available for all sensor types:
 
 [sensor my_sensor]
 type:
-#   The type of device.  Supported types: mqtt
+#   The type of device.  Supported types: mqtt, hwmon_sensor
 #   This parameter must be provided.
 name:
 #   The friendly display name of the sensor.
@@ -3465,6 +3465,59 @@ history_field_total_energy:
   precision=6
 ```
 ///
+
+
+#### Linux HWMON Sensor Configuration
+
+The `hwmon_sensor` type reads temperature and fan speed channels exposed by
+the Linux [hardware monitoring interface](https://docs.kernel.org/hwmon/).
+Temperatures are converted from millidegrees Celsius to degrees Celsius and
+fan values are reported in revolutions per minute.  Measurement names and
+units are reported as parameter metadata, allowing compatible frontends to
+render discovered channels without a matching `parameter_*` option.
+
+```ini {title="Moonraker Config Specification"}
+# moonraker.conf
+
+path:
+#   A HWMON device directory or a directory containing hwmonN devices.
+#   The default is /sys/class/hwmon.
+chip:
+#   Optionally select one device by the value in its "name" file or by its
+#   hwmonN directory name.  By default all devices below "path" are used.
+include:
+#   Newline separated input filename patterns to discover.  The defaults are:
+#     temp*_input
+#     fan*_input
+channels:
+#   Optional newline separated name=selector mappings.  When set, only these
+#   channels are reported.  A selector may be an input filename when it is
+#   unique, chip/input, hwmonN/input, or an absolute input path.  Explicit
+#   names must contain only letters, numbers, and underscores.
+poll_interval:
+#   The interval in seconds between reads.  The minimum and default are 1.0.
+```
+
+By default Moonraker discovers every supported input.  Labels supplied by the
+kernel driver are converted to stable parameter names.  The chip name is added
+when more than one HWMON device contributes measurements.  Explicit channel
+mapping is useful when a host exposes many channels or when stable, concise
+names are preferred:
+
+```ini {title="Moonraker Config Example"}
+[sensor host_hardware]
+type: hwmon_sensor
+name: Host temperatures and fans
+chip: nct6798
+channels:
+  cpu_temperature=temp2_input
+  case_fan_rpm=fan1_input
+poll_interval: 2
+```
+
+The `chip` and channel names vary by driver and machine.  They can be inspected
+on the Moonraker host with `cat /sys/class/hwmon/hwmon*/name` and by listing the
+matching `temp*_input`, `temp*_label`, `fan*_input`, and `fan*_label` files.
 
 
 #### MQTT Sensor Configuration
