@@ -176,6 +176,28 @@ class HwmonSensorTest(unittest.IsolatedAsyncioTestCase):
             (SENSOR_ERROR_EVENT_NAME, {"hwmon_test": None}),
         )
 
+    async def test_excludes_filename_and_chip_patterns(self) -> None:
+        device = self.hwmon_root / "hwmon4"
+        device.mkdir()
+        write_hwmon_file(device, "name", "it8603\n")
+        write_hwmon_file(device, "temp1_input", "39000\n")
+        write_hwmon_file(device, "temp4_input", "127000\n")
+        write_hwmon_file(device, "temp5_input", "127000\n")
+        write_hwmon_file(device, "fan1_input", "1100\n")
+        write_hwmon_file(device, "fan3_input", "0\n")
+        write_hwmon_file(device, "fan4_input", "0\n")
+        config = FakeConfig(
+            self.hwmon_root,
+            exclude=["it8603/temp[4-5]_input", "fan[3-4]_input"],
+        )
+        sensor = HWMONSensor(config)  # type: ignore[arg-type]
+
+        self.assertTrue(await sensor.initialize())
+        self.assertEqual(
+            sensor.last_measurements,
+            {"fan1_rpm": 1100, "temp1_temperature": 39.0},
+        )
+
     async def test_reports_missing_devices(self) -> None:
         config = FakeConfig(self.hwmon_root)
         sensor = HWMONSensor(config)  # type: ignore[arg-type]

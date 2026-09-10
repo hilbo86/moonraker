@@ -3489,6 +3489,10 @@ include:
 #   Newline separated input filename patterns to discover.  The defaults are:
 #     temp*_input
 #     fan*_input
+exclude:
+#   Optional newline separated patterns removed from the discovered inputs.
+#   Patterns may match a filename, chip/input, hwmonN/input, or an absolute
+#   path.  Shell-style wildcards such as *, ?, and [1-3] are supported.
 channels:
 #   Optional newline separated name=selector mappings.  When set, only these
 #   channels are reported.  A selector may be an input filename when it is
@@ -3513,6 +3517,17 @@ channels:
   cpu_temperature=temp2_input
   case_fan_rpm=fan1_input
 poll_interval: 2
+```
+
+Known unused or incorrectly connected channels can instead be hidden while
+retaining automatic discovery for all other inputs:
+
+```ini {title="Moonraker Config Example"}
+[sensor host_hardware]
+type: hwmon_sensor
+exclude:
+  it8603/temp[4-5]_input
+  it8603/fan[3-4]_input
 ```
 
 The `chip` and channel names vary by driver and machine.  They can be inspected

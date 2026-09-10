@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import logging
 import math
 import pathlib
@@ -45,6 +46,7 @@ class HWMONSensor(BaseSensor):
         self.input_patterns: List[str] = config.getlist(
             "include", DEFAULT_INPUT_PATTERNS
         )
+        self.exclude_patterns: List[str] = config.getlist("exclude", [])
         self.poll_interval: float = config.getfloat(
             "poll_interval", 1.0, minval=1.0
         )
@@ -109,11 +111,39 @@ class HWMONSensor(BaseSensor):
         for device_path, chip_name in devices:
             for pattern in self.input_patterns:
                 for input_path in device_path.glob(pattern):
-                    if input_path.is_file() and INPUT_NAME_RE.fullmatch(
-                        input_path.name
+                    if (
+                        input_path.is_file()
+                        and INPUT_NAME_RE.fullmatch(input_path.name)
+                        and not self._is_excluded(input_path, chip_name)
                     ):
                         inputs[input_path] = chip_name
         return sorted(inputs.items(), key=lambda item: str(item[0]))
+
+    @staticmethod
+    def _channel_selectors(
+        input_path: pathlib.Path, chip_name: str
+    ) -> Tuple[str, ...]:
+        device_name = input_path.parent.name
+        return (
+            input_path.name,
+            f"{device_name}/{input_path.name}",
+            f"{chip_name}/{input_path.name}",
+            input_path.as_posix(),
+        )
+
+    def _is_excluded(self, input_path: pathlib.Path, chip_name: str) -> bool:
+        selectors = tuple(
+            selector.casefold()
+            for selector in self._channel_selectors(input_path, chip_name)
+        )
+        for pattern in self.exclude_patterns:
+            normalized = pattern.replace("\\", "/").casefold()
+            if any(
+                fnmatch.fnmatchcase(selector, normalized)
+                for selector in selectors
+            ):
+                return True
+        return False
 
     @staticmethod
     def _channel_properties(input_path: pathlib.Path) -> Tuple[str, float, bool]:
@@ -132,14 +162,7 @@ class HWMONSensor(BaseSensor):
         selector = selector.replace("\\", "/")
         matches: List[pathlib.Path] = []
         for input_path, chip_name in available:
-            device_name = input_path.parent.name
-            candidates = {
-                input_path.name,
-                f"{device_name}/{input_path.name}",
-                f"{chip_name}/{input_path.name}",
-                input_path.as_posix(),
-            }
-            if selector in candidates:
+            if selector in self._channel_selectors(input_path, chip_name):
                 matches.append(input_path)
         if not matches:
             raise ValueError(f"HWMON channel selector not found: {selector}")
