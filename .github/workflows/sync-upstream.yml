@@ -62,7 +62,7 @@ jobs:
           git diff --check "${{ steps.merge.outputs.before_sha }}" HEAD
           pip install -e .
           python -m compileall -q moonraker
-          python -m unittest tests.test_hwmon_sensor.py
+          python -m unittest tests.test_hwmon_sensor
 
       - name: Push synchronized branch
         if: steps.merge.outputs.changed == 'true'
